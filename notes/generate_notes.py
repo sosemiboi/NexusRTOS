@@ -101,7 +101,7 @@ def build_pdf():
         "20. Fault Isolation & Auto-Recovery",
         "21. Per-Task CPU Profiler",
         "22. Extending the Project",
-        "23. Interview Questions & Answers",
+        "23. Common Questions & Answers",
     ]
     for item in toc:
         pdf.body(item)
@@ -134,8 +134,8 @@ def build_pdf():
         "4. How memory is managed without malloc/free from a C library.\n"
         "5. How hardware peripherals (timers, UARTs) interact with the kernel.\n\n"
         "This knowledge makes you dramatically more effective at debugging "
-        "real embedded systems, and it stands out on a resume because almost "
-        "nobody does it."
+        "real embedded systems and understanding what happens beneath the "
+        "abstraction layers."
     )
 
     # ── CH 2: ARM Cortex-M3 Architecture ────────────────────────────
@@ -1059,15 +1059,15 @@ def build_pdf():
         "- Whether a task is switching too frequently (high overhead)\n"
         "- CPU utilization: if the idle task gets < 20%, the system is heavily loaded\n"
         "- Whether priority assignments match actual workload importance\n\n"
-        "In an interview, being able to explain how you measured and optimized "
-        "CPU usage in your RTOS shows genuine systems engineering maturity."
+        "Understanding per-task CPU usage is essential for reasoning about "
+        "real-time guarantees and spotting tasks that consume more time than expected."
     )
 
     # ── CH 22: Extending ────────────────────────────────────────────
     pdf.add_page()
     pdf.chapter_title("22. Extending the Project")
 
-    pdf.body("Ideas to make this project even more impressive:")
+    pdf.body("Ideas for further development:")
 
     extensions = [
         ("Tickless Idle Mode",
@@ -1104,11 +1104,11 @@ def build_pdf():
 
     # ── CH 23: Interview Q&A ────────────────────────────────────────
     pdf.add_page()
-    pdf.chapter_title("23. Interview Questions & Answers")
+    pdf.chapter_title("23. Common Questions & Answers")
 
     pdf.body(
-        "Having this project on your resume WILL generate interview questions. "
-        "Here are the most common ones and how to answer them:"
+        "These are common questions about RTOS internals and the design decisions "
+        "behind NexusRTOS:"
     )
 
     qas = [

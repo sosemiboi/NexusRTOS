@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">NexusRTOS</h1>
   <p align="center">
-    A fault-resilient, preemptive real-time operating system kernel for ARM Cortex-M3
+    A preemptive real-time operating system kernel for ARM Cortex-M3
     <br />
     Written from scratch in C and ARM assembly &mdash; runs entirely on QEMU
   </p>
@@ -12,42 +12,31 @@
   <img src="https://img.shields.io/badge/lang-C_|_ARM_ASM-green" alt="Language" />
   <img src="https://img.shields.io/badge/platform-QEMU-orange" alt="Platform" />
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="License" />
-  <img src="https://img.shields.io/badge/features-KTrace_|_Fault_Recovery_|_CPU_Profiler-purple" alt="Novel Features" />
 </p>
-
----
-
-> **Resume line:** *Designed NexusRTOS, a fault-resilient RTOS kernel for ARM Cortex-M3 featuring kernel event tracing, stack-overflow detection with auto-recovery, priority-inheritance mutexes, and per-task CPU profiling*
 
 ---
 
 ## Overview
 
-NexusRTOS is a fully-functional RTOS kernel designed and implemented from the ground up. It targets the ARM Cortex-M3 (TI LM3S6965 Stellaris) and runs entirely in QEMU with no physical hardware required.
+NexusRTOS is an RTOS kernel built from the ground up for the ARM Cortex-M3 (TI LM3S6965 Stellaris). It runs entirely in QEMU -- no physical hardware required.
 
-Beyond a standard teaching RTOS, NexusRTOS implements three **novel subsystems** that demonstrate systems engineering depth:
+The kernel provides preemptive multitasking, synchronization primitives, dynamic memory, fault recovery, and runtime instrumentation, all in about 2000 lines of freestanding C and ARM Thumb-2 assembly with zero library dependencies.
 
-### Novel Features
+### Features
 
-| Feature | What it does | Why it matters |
-|:--|:--|:--|
-| **KTrace** (Kernel Event Tracer) | Lockless ring-buffer that logs context switches, mutex operations, task lifecycle events, and ISR activity with microsecond timestamps | Production RTOS kernels (FreeRTOS, Zephyr) have similar trace hooks -- this implements one from scratch, showing observability design |
-| **Fault Isolation & Auto-Recovery** | Stack canary painting (`0xDEADBEEF`), round-robin canary scanning in SysTick ISR, HardFault handler with diagnostic logging, and automatic restart of crashed tasks | Demonstrates safety-critical concepts: memory corruption detection, graceful degradation, and supervisor-mode recovery |
-| **Per-Task CPU Profiler** | Tracks cumulative run ticks per task in the scheduler, with a `top` command showing CPU% and context-switch counts | Shows real-time performance analysis capability -- a common interview discussion topic |
-
-### Core Kernel Features
-
-| Component | Implementation |
+| Component | Description |
 |:--|:--|
 | **Scheduler** | Priority-based preemptive scheduling with round-robin at equal priority levels |
 | **Context Switch** | PendSV-based, hand-written ARM Thumb-2 assembly |
 | **Mutexes** | Binary lock with priority inheritance protocol |
 | **Semaphores** | Counting semaphore with blocking wait/post |
 | **Message Queues** | Fixed-size ring-buffer IPC with blocking send/receive |
-| **Memory Allocator** | First-fit heap with block splitting and forward coalescing |
-| **UART Driver** | Polled UART0 with minimal `printf` (no libc dependency) |
-| **Debug Shell** | Interactive CLI: `ps`, `top`, `free`, `uptime`, `trace`, `fault`, `crash`, `version` |
-| **Idle Task** | WFI-based low-power idle loop |
+| **Heap Allocator** | First-fit with block splitting and forward coalescing |
+| **KTrace** | Lockless ring-buffer kernel event tracer (context switches, mutex ops, faults) |
+| **Fault Recovery** | Stack canary detection, HardFault handling, and automatic task restart |
+| **CPU Profiler** | Per-task run-time tracking with `top`-style shell output |
+| **UART Driver** | Polled UART0 with minimal `printf` (no libc) |
+| **Debug Shell** | Interactive CLI: `ps`, `top`, `free`, `uptime`, `trace`, `fault`, `crash` |
 
 ---
 
@@ -63,9 +52,9 @@ Beyond a standard teaching RTOS, NexusRTOS implements three **novel subsystems**
 | `arm-none-eabi-gdb` | Debugger (optional) |
 
 <details>
-<summary><strong>Installation (click to expand)</strong></summary>
+<summary><strong>Installation</strong></summary>
 
-**MSYS2 (Windows, recommended):**
+**MSYS2 (Windows):**
 ```bash
 pacman -S mingw-w64-x86_64-arm-none-eabi-gcc mingw-w64-x86_64-qemu-system-arm make
 ```
@@ -90,9 +79,46 @@ make run    # launch on QEMU
 
 Press `Ctrl+A` then `X` to exit QEMU.
 
-### Demo: Fault Recovery in Action
+### Example Session
 
 ```
+  _   _                     ____  _____ ___  ____
+ | \ | | _____  ___   _ ___|  _ \|_   _/ _ \/ ___|
+ |  \| |/ _ \ \/ / | | / __| |_) | | || | | \___ \
+ | |\  |  __/>  <| |_| \__ \  _ <  | || |_| |___) |
+ |_| \_|\___/_/\_\\__,_|___/_| \_\ |_|  \___/|____/
+
+ v1.0.0 | ARM Cortex-M3 | MIT License
+ -----------------------------------------------
+
+ Initializing kernel...
+ 7 tasks created. Starting scheduler...
+ [KTrace] Kernel event tracer active
+ [Fault]  Stack canary monitor active
+
+nexus> ps
+ID  NAME            PRI  STATE  STACK%  FAULTS
+--  --------------  ---  -----  ------  ------
+0   idle            0    READY  0%      0
+1   heartbeat       2    BLOCK  8%      0
+2   producer        3    BLOCK  15%     0
+3   consumer        3    BLOCK  10%     0
+4   stats           1    BLOCK  5%      0
+5   shell           4    RUN    20%     0
+6   stress          1    BLOCK  2%      0
+
+nexus> top
+ID  NAME            CPU%   SWITCHES
+--  --------------  -----  --------
+0   idle            72%    1580
+1   heartbeat       3%     12
+2   producer        5%     15
+3   consumer        4%     10
+4   stats           1%     2
+5   shell           14%    45
+6   stress          1%     130
+(uptime: 12845 ticks)
+
 nexus> crash
 Triggering deliberate stack overflow on 'stress' task...
 
@@ -115,18 +141,6 @@ TICK       EVENT      TID  EXTRA
 12844      STK_OVF      6    0
 12845      RESTART      6    1
 (6 events total, showing last 6)
-
-nexus> top
-ID  NAME            CPU%   SWITCHES
---  --------------  -----  --------
-0   idle            72%    1580
-1   heartbeat       3%     12
-2   producer        5%     15
-3   consumer        4%     10
-4   stats           1%     2
-5   shell           14%    45
-6   stress          1%     130
-(uptime: 12845 ticks)
 ```
 
 ---
@@ -188,10 +202,9 @@ nexus-rtos/
 ├── linker.ld             Memory layout for LM3S6965
 ├── LICENSE               MIT License
 ├── .gdbinit              GDB auto-connect script
-├── .gitignore
 │
 ├── include/
-│   ├── os_config.h       Tunables (tasks, stack, canaries, trace buffer)
+│   ├── os_config.h       Kernel configuration (tasks, stack, canaries, trace)
 │   ├── cortex_m3.h       Register definitions & intrinsics
 │   ├── task.h            Task Control Block & API
 │   ├── scheduler.h       Scheduler API
@@ -202,28 +215,28 @@ nexus-rtos/
 │   ├── sysclock.h        System clock API
 │   ├── uart.h            UART driver API
 │   ├── shell.h           Debug shell
-│   ├── ktrace.h          Kernel event tracer API
-│   └── fault.h           Fault detection & recovery API
+│   ├── ktrace.h          Kernel event tracer
+│   └── fault.h           Fault detection & recovery
 │
 ├── src/
 │   ├── startup.c         Vector table & C runtime init
 │   ├── context_switch.s  PendSV + HardFault handlers (ARM Thumb-2)
-│   ├── scheduler.c       Kernel core, ready queues, CPU profiling
+│   ├── scheduler.c       Kernel core, ready queues, CPU time accounting
 │   ├── task.c            Task creation (with stack canaries), delay, yield
 │   ├── sysclock.c        SysTick ISR, tick management, canary scanning
-│   ├── mutex.c           Mutex with priority inheritance + trace events
+│   ├── mutex.c           Mutex with priority inheritance
 │   ├── semaphore.c       Counting semaphore
 │   ├── msgqueue.c        Ring-buffer message queue
 │   ├── heap.c            First-fit allocator
 │   ├── uart.c            UART0 driver with minimal printf
-│   ├── shell.c           Interactive debug shell (ps, top, trace, fault, crash)
-│   ├── ktrace.c          Lockless ring-buffer kernel event tracer
+│   ├── shell.c           Debug shell (ps, top, trace, fault, crash)
+│   ├── ktrace.c          Lockless ring-buffer event tracer
 │   ├── fault.c           Stack overflow detection & auto-recovery
-│   └── main.c            Demo application with stress test
+│   └── main.c            Demo application
 │
 ├── scripts/              Launch scripts (.bat / .sh)
 └── notes/
-    └── notes.pdf         Comprehensive learning guide (20 chapters)
+    └── notes.pdf         23-chapter reference guide
 ```
 
 ---
@@ -232,73 +245,85 @@ nexus-rtos/
 
 | Command | Description |
 |:--|:--|
-| `ps` | List active tasks with priority, state, stack usage, and fault count |
-| `top` | Per-task CPU usage percentage and context-switch count |
-| `free` | Heap memory usage statistics |
-| `uptime` | System uptime in minutes/seconds/ticks |
+| `ps` | List tasks with priority, state, stack usage, and fault count |
+| `top` | Per-task CPU usage and context-switch count |
+| `free` | Heap memory usage |
+| `uptime` | System uptime |
 | `trace` | Dump the last 32 kernel trace events |
-| `fault` | Show fault history log (stack overflows and hard faults) |
-| `crash` | Trigger a deliberate stack overflow on the stress task (demonstrates auto-recovery) |
-| `version` | Kernel version and target info |
-| `help` | List available commands |
+| `fault` | Fault history log |
+| `crash` | Trigger a test stack overflow (stress task auto-recovers) |
+| `version` | Kernel version and target |
+| `help` | List commands |
+
+---
+
+## Design Notes
+
+### Context Switching
+
+The PendSV handler (set to the lowest exception priority) performs context switches:
+
+1. Hardware saves `{R0-R3, R12, LR, PC, xPSR}` onto the current task's stack (PSP)
+2. PendSV saves `{R4-R11}` via `STMDB`
+3. `os_schedule()` selects the highest-priority ready task and accounts CPU time
+4. KTrace records a `SWITCH` event
+5. PendSV restores `{R4-R11}` via `LDMIA`
+6. Exception return (`BX LR` with `EXC_RETURN = 0xFFFFFFFD`) restores the hardware frame
+
+### Fault Recovery
+
+1. **Prevention:** Stack canaries (`0xDEADBEEF x 4`) painted at the bottom of every task stack
+2. **Detection:** SysTick ISR checks one task's canaries per tick (round-robin)
+3. **Diagnosis:** Logs fault record (tick, PC, LR, task ID) and KTrace event
+4. **Recovery:** Terminates faulting task, re-initializes its stack, restarts from entry point if marked restartable
+5. **HardFault path:** Assembly wrapper extracts the exception frame (MSP/PSP), C handler logs diagnostics and redirects to the recovery stub
+
+### Priority Inheritance
+
+When a high-priority task blocks on a mutex held by a lower-priority task, the holder's priority is temporarily boosted to prevent unbounded priority inversion. Priority reverts on unlock.
+
+### Memory Layout
+
+| Region | Address | Size |
+|:--|:--|:--|
+| Flash | `0x00000000` | 256 KB |
+| SRAM | `0x20000000` | 64 KB |
 
 ---
 
 ## Debugging
 
 ```bash
-# Terminal 1: start QEMU paused
-make debug
-
-# Terminal 2: connect GDB
-arm-none-eabi-gdb nexus-rtos.elf -x .gdbinit
+make debug    # starts QEMU paused + GDB
 ```
 
 Useful GDB commands:
 
 ```gdb
-break PendSV_Handler            # break on context switch
-break HardFault_Handler_C       # break on fault recovery
-print current_task->name        # which task is running
-print current_task->run_ticks   # CPU time consumed
-print task_pool[0].fault_count  # faults for task 0
-x/4x &task_pool[0].stack[0]    # inspect stack canaries
-watch current_task              # break on task switch
+break PendSV_Handler            # context switch
+break HardFault_Handler_C       # fault recovery
+print current_task->name        # running task
+print current_task->run_ticks   # CPU time
+x/4x &task_pool[0].stack[0]    # stack canaries
+watch current_task              # break on switch
 ```
 
 ---
 
-## Technical Details
+## Configuration
 
-### Context Switching
+All tunables live in [`include/os_config.h`](include/os_config.h):
 
-The PendSV handler (lowest exception priority) performs cooperative/preemptive context switches:
-
-1. Hardware saves `{R0-R3, R12, LR, PC, xPSR}` onto the current task's stack (PSP)
-2. PendSV manually saves `{R4-R11}` via `STMDB`
-3. Scheduler selects the highest-priority ready task, logs CPU time
-4. KTrace records a `SWITCH` event with old/new task IDs
-5. PendSV restores `{R4-R11}` from the new task's stack via `LDMIA`
-6. Exception return (`BX LR` with `EXC_RETURN = 0xFFFFFFFD`) restores the hardware frame
-
-### Fault Recovery Pipeline
-
-1. **Prevention:** Stack canaries (`0xDEADBEEF x 4`) painted at the bottom of every task stack on creation
-2. **Detection:** SysTick ISR scans one task's canaries per tick (round-robin across all tasks)
-3. **Diagnosis:** On corruption, logs fault record (tick, PC, LR, task ID, type) and KTrace event
-4. **Recovery:** Terminates faulting task, re-initializes its stack, restores canaries, restarts from entry point
-5. **HardFault path:** Assembly wrapper extracts fault frame (MSP/PSP), C handler logs diagnostics and redirects to recovery stub
-
-### Priority Inheritance
-
-When a high-priority task blocks on a mutex held by a lower-priority task, the holder's priority is temporarily boosted to prevent priority inversion (the Mars Pathfinder bug). Priority reverts on unlock.
-
-### Memory Layout
-
-| Region | Address | Size | Contents |
-|:--|:--|:--|:--|
-| Flash | `0x00000000` | 256 KB | Vector table, code, constants |
-| SRAM | `0x20000000` | 64 KB | Data, BSS, heap, task stacks |
+| Define | Default | Description |
+|:--|:--|:--|
+| `MAX_TASKS` | 16 | Maximum concurrent tasks |
+| `MAX_PRIORITY_LEVELS` | 8 | Priority levels (0 = lowest) |
+| `STACK_SIZE` | 512 words | Per-task stack (2 KB) |
+| `HEAP_SIZE` | 16 KB | Dynamic memory pool |
+| `SYSTICK_FREQ_HZ` | 1000 | Tick rate (1 ms) |
+| `TRACE_BUF_SIZE` | 256 | KTrace ring buffer entries |
+| `STACK_CANARY` | `0xDEADBEEF` | Canary word value |
+| `STACK_CANARY_WORDS` | 4 | Canary words per task |
 
 ---
 
